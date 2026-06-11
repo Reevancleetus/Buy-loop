@@ -1,7 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import MapView from '../components/common/MapView';
-import { isMockDatabase } from '../supabaseClient';
 
 const LOCATION_PRESETS = [
   { name: 'NYC City Hall, NY', lat: 40.7128, lng: -74.0060 },
@@ -15,10 +14,6 @@ const Auth = ({ onAuthSuccess }) => {
   const { login, loginWithGoogle, register } = useContext(AuthContext);
   const [isLogin, setIsLogin] = useState(true);
   
-  // Local state for configuration input
-  const [dbUrl, setDbUrl] = useState(localStorage.getItem('supabase_url') || '');
-  const [dbAnonKey, setDbAnonKey] = useState(localStorage.getItem('supabase_anon_key') || '');
-  const [showConfig, setShowConfig] = useState(false);
   
   // Login Form
   const [loginId, setLoginId] = useState('');
@@ -81,17 +76,18 @@ const Auth = ({ onAuthSuccess }) => {
   const handleAddressSearch = async (addressText) => {
     if (!addressText || addressText.length < 3) return;
     try {
-      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addressText)}&key=${apiKey}`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressText)}`);
       const data = await res.json();
-      if (data && data.results && data.results.length > 0) {
-        const location = data.results[0].geometry.location;
-        setRegCoords({ lat: location.lat, lng: location.lng });
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        setRegCoords({ lat, lng: lon });
       } else {
         alert('Could not find location. Try checking the address spelling or drag the map pin manually.');
       }
     } catch (err) {
       console.error('Geocoding error:', err);
+      alert('Could not connect to the geocoding service. Please try dragging the map pin manually.');
     }
   };
 
@@ -103,84 +99,7 @@ const Auth = ({ onAuthSuccess }) => {
       animation: 'fadeIn 0.3s ease-out'
     }} className="glass-panel">
       
-      {isMockDatabase && (
-        <div style={{
-          backgroundColor: 'rgba(245, 158, 11, 0.15)',
-          color: '#d97706',
-          border: '1px solid #f59e0b',
-          borderRadius: '8px',
-          padding: '12px 16px',
-          marginBottom: '20px',
-          fontSize: '13px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <span>
-            💡 <strong>Demo Mode Active:</strong> Using simulated browser storage. Any accounts or items you create are saved locally.
-          </span>
-          <button 
-            type="button"
-            onClick={() => setShowConfig(!showConfig)}
-            style={{
-              background: '#d97706',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '6px 12px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '12px',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {showConfig ? 'Hide Config' : 'Connect Real DB'}
-          </button>
-        </div>
-      )}
 
-      {!isMockDatabase && (
-        <div style={{
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-          color: '#059669',
-          border: '1px solid #10b981',
-          borderRadius: '8px',
-          padding: '12px 16px',
-          marginBottom: '20px',
-          fontSize: '13px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          <span>
-            ✅ <strong>Connected:</strong> Using your custom Supabase database coordinates.
-          </span>
-          <button 
-            type="button"
-            onClick={() => {
-              localStorage.removeItem('supabase_url');
-              localStorage.removeItem('supabase_anon_key');
-              alert('Credentials cleared! Reverting to Demo Mode. Reloading...');
-              window.location.reload();
-            }}
-            style={{
-              background: '#ef4444',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '6px 12px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '12px',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            Disconnect Real DB
-          </button>
-        </div>
-      )}
       
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: '24px' }}>
         <button
@@ -426,61 +345,7 @@ const Auth = ({ onAuthSuccess }) => {
         </form>
       )}
 
-      {showConfig && (
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (dbUrl && dbAnonKey) {
-              localStorage.setItem('supabase_url', dbUrl.trim());
-              localStorage.setItem('supabase_anon_key', dbAnonKey.trim());
-              alert('Supabase credentials saved! Reloading application...');
-              window.location.reload();
-            }
-          }} 
-          style={{
-            marginTop: '24px',
-            padding: '20px',
-            border: '1px dashed var(--border-color)',
-            borderRadius: '12px',
-            backgroundColor: 'var(--bg-tertiary)',
-            animation: 'fadeIn 0.2s ease-out'
-          }}
-        >
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '15px', fontWeight: '700' }}>🔌 Connect to your Supabase Project</h4>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-            Enter your project keys below. These are stored locally in your browser's memory and won't be saved on any server.
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>VITE_SUPABASE_URL</label>
-              <input
-                type="url"
-                className="input-field"
-                placeholder="https://your-project-id.supabase.co"
-                value={dbUrl}
-                onChange={(e) => setDbUrl(e.target.value)}
-                required
-                style={{ fontSize: '13px' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: '600' }}>VITE_SUPABASE_ANON_KEY</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                value={dbAnonKey}
-                onChange={(e) => setDbAnonKey(e.target.value)}
-                required
-                style={{ fontSize: '13px' }}
-              />
-            </div>
-          </div>
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '10px', fontSize: '14px' }}>
-            Save & Connect Database
-          </button>
-        </form>
-      )}
+
     </div>
   );
 };

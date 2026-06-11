@@ -1,45 +1,33 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-// Global script loader to avoid duplicate loads
-let googleMapsLoadPromise = null;
+// Fix default marker icon issues in Vite/Webpack environments
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
-function loadGoogleMaps() {
-  if (googleMapsLoadPromise) return googleMapsLoadPromise;
-  if (window.google && window.google.maps) return Promise.resolve();
+// Custom marker icons
+const redIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
 
-  googleMapsLoadPromise = new Promise((resolve, reject) => {
-    // Check if script tag already exists
-    if (document.querySelector('script[src*="maps.googleapis.com"]')) {
-      const checkLoaded = setInterval(() => {
-        if (window.google && window.google.maps) {
-          clearInterval(checkLoaded);
-          resolve();
-        }
-      }, 100);
-      return;
-    }
-
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker&callback=__googleMapsInit`;
-    script.async = true;
-    script.defer = true;
-
-    window.__googleMapsInit = () => {
-      delete window.__googleMapsInit;
-      resolve();
-    };
-
-    script.onerror = () => {
-      googleMapsLoadPromise = null;
-      reject(new Error('Failed to load Google Maps API'));
-    };
-
-    document.head.appendChild(script);
-  });
-
-  return googleMapsLoadPromise;
-}
+const purpleIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
 
 const MapView = ({
   center = [40.7128, -74.0060], // default NYC
@@ -54,9 +42,8 @@ const MapView = ({
   const mapInstanceRef = useRef(null);
   const selectionMarkerRef = useRef(null);
   const userMarkerRef = useRef(null);
+  const userCircleRef = useRef(null);
   const listingMarkersRef = useRef([]);
-  const infoWindowRef = useRef(null);
-  const isInitializedRef = useRef(false);
 
   // Extract coordinates for stable dependencies
   const centerLat = center[0];
@@ -66,181 +53,138 @@ const MapView = ({
 
   // 1. Initialize Map once on mount
   useEffect(() => {
-    let cancelled = false;
+    if (!mapContainerRef.current) return;
 
-    const initMap = async () => {
-      try {
-        await loadGoogleMaps();
-      } catch (err) {
-        console.error('Google Maps failed to load:', err);
-        return;
-      }
+    // Initialize Leaflet map
+    const map = L.map(mapContainerRef.current, {
+      center: [centerLat, centerLng],
+      zoom,
+      zoomControl: true,
+    });
 
-      if (cancelled || !mapContainerRef.current) return;
+    // Add OpenStreetMap tile layer (free, no API key needed)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-      const map = new google.maps.Map(mapContainerRef.current, {
-        center: { lat: centerLat, lng: centerLng },
-        zoom,
-        mapId: 'buyloop-map',
-        disableDefaultUI: false,
-        zoomControl: true,
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-        styles: [
-          {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'off' }]
-          },
-          {
-            featureType: 'transit',
-            stylers: [{ visibility: 'simplified' }]
-          }
-        ]
+    mapInstanceRef.current = map;
+
+    // If selection mode, add click listener and initial marker
+    if (selectionMode) {
+      const marker = L.marker([centerLat, centerLng], {
+        icon: redIcon,
+        draggable: true
+      }).addTo(map);
+
+      selectionMarkerRef.current = marker;
+
+      marker.on('dragend', () => {
+        const position = marker.getLatLng();
+        if (onLocationSelect) {
+          onLocationSelect({ lat: position.lat, lng: position.lng });
+        }
       });
 
-      mapInstanceRef.current = map;
-      infoWindowRef.current = new google.maps.InfoWindow();
-      isInitializedRef.current = true;
+      map.on('click', (e) => {
+        const { lat, lng } = e.latlng;
+        marker.setLatLng([lat, lng]);
+        if (onLocationSelect) {
+          onLocationSelect({ lat, lng });
+        }
+      });
+    }
 
-      // If selection mode, add click listener and initial marker
-      if (selectionMode) {
-        const marker = new google.maps.Marker({
-          position: { lat: centerLat, lng: centerLng },
-          map,
-          draggable: true,
-          icon: {
-            url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
-            scaledSize: new google.maps.Size(40, 40)
-          },
-          animation: google.maps.Animation.DROP
-        });
-
-        selectionMarkerRef.current = marker;
-
-        marker.addListener('dragend', () => {
-          const position = marker.getPosition();
-          if (onLocationSelect) {
-            onLocationSelect({ lat: position.lat(), lng: position.lng() });
-          }
-        });
-
-        map.addListener('click', (e) => {
-          const lat = e.latLng.lat();
-          const lng = e.latLng.lng();
-          marker.setPosition({ lat, lng });
-          if (onLocationSelect) {
-            onLocationSelect({ lat, lng });
-          }
-        });
-      }
-    };
-
-    initMap();
+    // Trigger a resize on next tick to ensure the map renders correctly
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 100);
 
     return () => {
-      cancelled = true;
-      // Cleanup markers
+      // Cleanup map instance
       if (selectionMarkerRef.current) {
-        selectionMarkerRef.current.setMap(null);
+        selectionMarkerRef.current.remove();
         selectionMarkerRef.current = null;
       }
       if (userMarkerRef.current) {
-        userMarkerRef.current.setMap(null);
+        userMarkerRef.current.remove();
         userMarkerRef.current = null;
       }
-      listingMarkersRef.current.forEach(m => m.setMap(null));
-      listingMarkersRef.current = [];
-      if (infoWindowRef.current) {
-        infoWindowRef.current.close();
+      if (userCircleRef.current) {
+        userCircleRef.current.remove();
+        userCircleRef.current = null;
       }
+      listingMarkersRef.current.forEach(m => m.remove());
+      listingMarkersRef.current = [];
+      map.remove();
       mapInstanceRef.current = null;
-      isInitializedRef.current = false;
     };
   }, [selectionMode]); // Re-initialize only if mode changes
 
   // 2. Handle center updates dynamically without rebuilding the map
   useEffect(() => {
-    if (!mapInstanceRef.current || !isInitializedRef.current) return;
+    if (!mapInstanceRef.current) return;
 
-    mapInstanceRef.current.panTo({ lat: centerLat, lng: centerLng });
+    mapInstanceRef.current.panTo([centerLat, centerLng]);
 
     // Update selection marker position if it exists
     if (selectionMode && selectionMarkerRef.current) {
-      selectionMarkerRef.current.setPosition({ lat: centerLat, lng: centerLng });
+      selectionMarkerRef.current.setLatLng([centerLat, centerLng]);
     }
   }, [centerLat, centerLng, selectionMode]);
 
   // 3. Handle user current location marker updates
   useEffect(() => {
-    if (!mapInstanceRef.current || !isInitializedRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
 
-    // Remove old user marker
+    // Remove old user marker and circle
     if (userMarkerRef.current) {
-      userMarkerRef.current.setMap(null);
+      userMarkerRef.current.remove();
       userMarkerRef.current = null;
+    }
+    if (userCircleRef.current) {
+      userCircleRef.current.remove();
+      userCircleRef.current = null;
     }
 
     if (userLat && userLng) {
-      const marker = new google.maps.Marker({
-        position: { lat: userLat, lng: userLng },
-        map: mapInstanceRef.current,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          fillColor: '#4285F4',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 3,
-          scale: 10
-        },
-        title: 'Your Current Location (Center)',
-        zIndex: 999
-      });
-
-      // Add a pulsing circle around user location
-      new google.maps.Circle({
-        map: mapInstanceRef.current,
-        center: { lat: userLat, lng: userLng },
-        radius: 200,
-        fillColor: '#4285F4',
-        fillOpacity: 0.1,
-        strokeColor: '#4285F4',
-        strokeOpacity: 0.3,
-        strokeWeight: 1
-      });
-
-      const infoWindow = new google.maps.InfoWindow({
-        content: '<b style="font-family: inherit; color: #1a73e8;">Your Current Location (Center)</b>'
-      });
-
-      infoWindow.open(mapInstanceRef.current, marker);
+      // Create user marker
+      const marker = L.marker([userLat, userLng], {
+        zIndexOffset: 1000
+      }).addTo(map);
+      
+      marker.bindPopup('<b style="font-family: inherit; color: #1a73e8;">Your Current Location (Center)</b>').openPopup();
       userMarkerRef.current = marker;
+
+      // Add circle around user location
+      const circle = L.circle([userLat, userLng], {
+        radius: 200,
+        fillColor: '#3b82f6',
+        fillOpacity: 0.15,
+        color: '#3b82f6',
+        opacity: 0.4,
+        weight: 1
+      }).addTo(map);
+      userCircleRef.current = circle;
     }
   }, [userLat, userLng]);
 
   // 4. Handle listing markers updates
   useEffect(() => {
-    if (!mapInstanceRef.current || !isInitializedRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map) return;
 
     // Clear existing listing markers
-    listingMarkersRef.current.forEach(m => m.setMap(null));
+    listingMarkersRef.current.forEach(m => m.remove());
     listingMarkersRef.current = [];
 
     // Add new markers
     listings.forEach(listing => {
       if (!listing.lat || !listing.lng) return;
 
-      const marker = new google.maps.Marker({
-        position: { lat: listing.lat, lng: listing.lng },
-        map: mapInstanceRef.current,
-        icon: {
-          url: 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png',
-          scaledSize: new google.maps.Size(36, 36)
-        },
-        animation: google.maps.Animation.DROP,
-        title: listing.title
-      });
+      const marker = L.marker([listing.lat, listing.lng], {
+        icon: purpleIcon
+      }).addTo(map);
 
       listingMarkersRef.current.push(marker);
 
@@ -269,21 +213,15 @@ const MapView = ({
         </div>
       `;
 
-      marker.addListener('click', () => {
-        if (infoWindowRef.current) {
-          infoWindowRef.current.setContent(popupHtml);
-          infoWindowRef.current.open(mapInstanceRef.current, marker);
+      marker.bindPopup(popupHtml);
 
-          // Wait for InfoWindow DOM to render, then bind button click
-          google.maps.event.addListenerOnce(infoWindowRef.current, 'domready', () => {
-            const btn = document.getElementById(`map-btn-${listing.id}`);
-            if (btn) {
-              btn.onclick = () => {
-                const event = new CustomEvent('view-listing-details', { detail: listing.id });
-                window.dispatchEvent(event);
-              };
-            }
-          });
+      marker.on('popupopen', () => {
+        const btn = document.getElementById(`map-btn-${listing.id}`);
+        if (btn) {
+          btn.onclick = () => {
+            const event = new CustomEvent('view-listing-details', { detail: listing.id });
+            window.dispatchEvent(event);
+          };
         }
       });
     });

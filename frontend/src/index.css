@@ -274,20 +274,23 @@ a:hover {
   animation: pulse-ring 2s infinite ease-in-out;
 }
 
-/* Google Maps Overrides */
-.gm-style {
+/* Leaflet Map Overrides */
+.leaflet-container {
   font-family: var(--font-sans) !important;
 }
-.gm-style .gm-style-iw-c {
+.leaflet-popup-content-wrapper {
   border-radius: var(--radius-sm) !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.15) !important;
   padding: 4px !important;
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
 }
-.gm-style .gm-style-iw-d {
-  overflow: auto !important;
+.leaflet-popup-content {
+  margin: 8px !important;
+  line-height: inherit !important;
 }
-.gm-style .gm-style-iw-tc::after {
-  background: white !important;
+.leaflet-popup-tip {
+  background: var(--bg-primary) !important;
 }
 
 /* Stars Rating */
