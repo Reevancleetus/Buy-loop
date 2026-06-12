@@ -137,7 +137,7 @@ const CreateListing = ({ onListingCreated }) => {
             />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Price ($) *</label>
+            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600' }}>Price (₹) *</label>
             <input
               type="number"
               className="input-field"

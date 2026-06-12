@@ -196,7 +196,7 @@ const MapView = ({
         <div style="font-family: inherit; max-width: 220px; padding: 4px;">
           <img src="${imageUrl}" style="width: 100%; height: 110px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" />
           <h4 style="margin: 0 0 4px 0; font-size: 14px; font-weight: 700;">${listing.title}</h4>
-          <p style="margin: 0 0 6px 0; color: #6366f1; font-weight: 700; font-size: 14px;">$${listing.price}</p>
+          <p style="margin: 0 0 6px 0; color: #6366f1; font-weight: 700; font-size: 14px;">₹${listing.price}</p>
           <p style="margin: 0 0 8px 0; font-size: 11px; color: #64748b;">${listing.distance !== null ? `${listing.distance} km away` : ''}</p>
           <button class="map-view-btn" id="map-btn-${listing.id}" style="
             width: 100%;

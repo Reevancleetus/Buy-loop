@@ -435,7 +435,7 @@ const Chat = ({ initialActiveChatId }) => {
                       {chat.listing_title}
                     </span>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                      Role: {isOwner ? 'Seller' : 'Buyer'} • ${chat.listing_price}
+                      Role: {isOwner ? 'Seller' : 'Buyer'} • ₹{chat.listing_price}
                     </span>
                   </div>
                 </div>
@@ -473,7 +473,7 @@ const Chat = ({ initialActiveChatId }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                   <span>⭐ {getOtherPartyRating(activeChat).toFixed(1)} rating</span>
                   <span>•</span>
-                  <span>Listing: <b>{activeChat.listing_title}</b> (${activeChat.listing_price})</span>
+                  <span>Listing: <b>{activeChat.listing_title}</b> (₹{activeChat.listing_price})</span>
                 </div>
               </div>
 
@@ -579,7 +579,7 @@ const Chat = ({ initialActiveChatId }) => {
                 
                 <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
                   <p>Method: <b>{activeTransaction.payment_method === 'escrow_payloop' ? '🛡️ Escrow Pay-loop' : '💵 Cash Meetup'}</b></p>
-                  <p>Amount: <b>${activeTransaction.price.toFixed(2)}</b></p>
+                  <p>Amount: <b>₹{activeTransaction.price.toFixed(2)}</b></p>
                   <p style={{ marginTop: '4px' }}>Status: <span className={`badge ${
                     activeTransaction.status === 'completed' ? 'badge-success' : 
                     (activeTransaction.status === 'cancelled' ? 'badge-danger' : 'badge-warning')

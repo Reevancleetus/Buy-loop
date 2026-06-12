@@ -269,7 +269,7 @@ const Profile = ({ setCurrentPage }) => {
                       {item.title}
                     </h4>
                     <span style={{ display: 'block', fontSize: '14px', fontWeight: '700', color: 'var(--primary)', marginTop: '2px' }}>
-                      ${item.price}
+                      ₹{item.price}
                     </span>
                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                       Location: {item.address}

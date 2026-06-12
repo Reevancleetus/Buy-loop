@@ -89,7 +89,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
       if (txError) throw txError;
 
       // 4. Send system message in chat
-      const systemMsg = `⚡ Transaction initiated using ${paymentMethod === 'escrow_payloop' ? '🛡️ Escrow Pay-loop' : '💵 Cash Meetup'} for $${listing.price.toFixed(2)}. Awaiting seller approval.`;
+      const systemMsg = `⚡ Transaction initiated using ${paymentMethod === 'escrow_payloop' ? '🛡️ Escrow Pay-loop' : '💵 Cash Meetup'} for ₹${listing.price.toFixed(2)}. Awaiting seller approval.`;
       const { error: msgError } = await supabase
         .from('messages')
         .insert([
@@ -312,7 +312,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
               </div>
               <div style={{ marginLeft: 'auto' }}>
                 <span style={{ fontSize: '32px', fontWeight: '900', color: 'var(--primary)' }}>
-                  ${listing.price.toFixed(2)}
+                  ₹{listing.price.toFixed(2)}
                 </span>
               </div>
             </div>
@@ -430,7 +430,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
               <div>
                 <h4 style={{ margin: 0, fontWeight: '700', fontSize: '15px' }}>{listing.title}</h4>
                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '13px' }}>Seller: @{listing.username}</p>
-                <p style={{ margin: '4px 0 0 0', color: 'var(--primary)', fontWeight: '800' }}>${listing.price.toFixed(2)}</p>
+                <p style={{ margin: '4px 0 0 0', color: 'var(--primary)', fontWeight: '800' }}>₹{listing.price.toFixed(2)}</p>
               </div>
             </div>
 

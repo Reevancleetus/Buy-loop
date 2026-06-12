@@ -324,7 +324,7 @@ const Home = ({ onViewDetails }) => {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                     <span style={{ fontSize: '20px', fontWeight: '800', color: 'var(--primary)' }}>
-                      ${item.price.toFixed(2)}
+                      ₹{item.price.toFixed(2)}
                     </span>
                   </div>
 
