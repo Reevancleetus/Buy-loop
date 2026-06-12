@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-routing-machine';
+import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
 
 // Fix default marker icon issues in Vite/Webpack environments
 delete L.Icon.Default.prototype._getIconUrl;
@@ -29,6 +31,15 @@ const purpleIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
+const deliveryIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
 const MapView = ({
   center = [40.7128, -74.0060], // default NYC
   zoom = 13,
@@ -36,6 +47,8 @@ const MapView = ({
   selectionMode = false,
   onLocationSelect = null,
   userLocation = null,
+  route = null,
+  drivers = [],
   height = '400px'
 }) => {
   const mapContainerRef = useRef(null);
@@ -44,6 +57,8 @@ const MapView = ({
   const userMarkerRef = useRef(null);
   const userCircleRef = useRef(null);
   const listingMarkersRef = useRef([]);
+  const routingControlRef = useRef(null);
+  const driverMarkersRef = useRef([]);
 
   // Extract coordinates for stable dependencies
   const centerLat = center[0];
@@ -99,26 +114,32 @@ const MapView = ({
       map.invalidateSize();
     }, 100);
 
-    return () => {
-      // Cleanup map instance
-      if (selectionMarkerRef.current) {
-        selectionMarkerRef.current.remove();
-        selectionMarkerRef.current = null;
-      }
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-        userMarkerRef.current = null;
-      }
-      if (userCircleRef.current) {
-        userCircleRef.current.remove();
-        userCircleRef.current = null;
-      }
-      listingMarkersRef.current.forEach(m => m.remove());
-      listingMarkersRef.current = [];
-      map.remove();
-      mapInstanceRef.current = null;
-    };
-  }, [selectionMode]); // Re-initialize only if mode changes
+      return () => {
+        // Cleanup map instance
+        if (selectionMarkerRef.current) {
+          selectionMarkerRef.current.remove();
+          selectionMarkerRef.current = null;
+        }
+        if (userMarkerRef.current) {
+          userMarkerRef.current.remove();
+          userMarkerRef.current = null;
+        }
+        if (userCircleRef.current) {
+          userCircleRef.current.remove();
+          userCircleRef.current = null;
+        }
+        if (routingControlRef.current) {
+          map.removeControl(routingControlRef.current);
+          routingControlRef.current = null;
+        }
+        listingMarkersRef.current.forEach(m => m.remove());
+        listingMarkersRef.current = [];
+        driverMarkersRef.current.forEach(m => m.remove());
+        driverMarkersRef.current = [];
+        map.remove();
+        mapInstanceRef.current = null;
+      };
+    }, [selectionMode]); // Re-initialize only if mode changes
 
   // 2. Handle center updates dynamically without rebuilding the map
   useEffect(() => {
@@ -226,6 +247,67 @@ const MapView = ({
       });
     });
   }, [listings]);
+
+  // 5. Handle Route updates
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (routingControlRef.current) {
+      map.removeControl(routingControlRef.current);
+      routingControlRef.current = null;
+    }
+
+    if (route && route.start && route.end) {
+      const routingControl = L.Routing.control({
+        waypoints: [
+          L.latLng(route.start.lat, route.start.lng),
+          L.latLng(route.end.lat, route.end.lng)
+        ],
+        routeWhileDragging: false,
+        addWaypoints: false,
+        fitSelectedRoutes: true,
+        showAlternatives: false,
+        lineOptions: {
+          styles: [{ color: '#6366f1', opacity: 0.8, weight: 6 }]
+        },
+        createMarker: function() { return null; }, // We'll rely on our own markers
+        show: false // hide the textual directions box to keep UI clean
+      }).addTo(map);
+
+      routingControlRef.current = routingControl;
+    }
+  }, [route]);
+
+  // 6. Handle driver markers updates
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    // Clear existing driver markers
+    driverMarkersRef.current.forEach(m => m.remove());
+    driverMarkersRef.current = [];
+
+    // Add new driver markers
+    drivers.forEach(driver => {
+      if (!driver.lat || !driver.lng) return;
+
+      const marker = L.marker([driver.lat, driver.lng], {
+        icon: deliveryIcon
+      }).addTo(map);
+
+      marker.bindPopup(`
+        <div style="font-family: inherit; font-size: 12px; padding: 4px;">
+          <b style="color: var(--primary);">🚚 Delivery Driver</b><br/>
+          <b>Name:</b> ${driver.name}<br/>
+          <b>Vehicle:</b> ${driver.vehicle}<br/>
+          <b>Rating:</b> ${driver.rating} ★
+        </div>
+      `);
+
+      driverMarkersRef.current.push(marker);
+    });
+  }, [drivers]);
 
   return (
     <div

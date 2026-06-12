@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import MapView from '../components/common/MapView';
 import { supabase } from '../supabaseClient';
@@ -17,8 +17,37 @@ const QUICK_RESPONSES = [
   'I can meet up today if you are free.'
 ];
 
+const MOCK_DRIVERS = [
+  { id: 1, name: 'Ramesh Kumar', vehicle: 'Tata Ace (Chota Hathi)', phone: '+91 98765 43210', rating: 4.8, ratePerKm: 20, latOffset: 0.008, lngOffset: 0.007 },
+  { id: 2, name: 'Suresh Raina', vehicle: 'Mahindra Bolero Pickup', phone: '+91 87654 32109', rating: 4.7, ratePerKm: 25, latOffset: -0.006, lngOffset: 0.012 },
+  { id: 3, name: 'Amit Singh', vehicle: 'Auto Rickshaw (Cargo)', phone: '+91 76543 21098', rating: 4.9, ratePerKm: 15, latOffset: 0.004, lngOffset: -0.009 },
+  { id: 4, name: 'Vikram Rathore', vehicle: 'E-Rikshaw Loader', phone: '+91 65432 10987', rating: 4.6, ratePerKm: 12, latOffset: -0.011, lngOffset: -0.004 },
+  { id: 5, name: 'Pankaj Tripathi', vehicle: 'Maruti Eeco Cargo', phone: '+91 95432 98765', rating: 4.9, ratePerKm: 18, latOffset: 0.014, lngOffset: 0.015 },
+  { id: 6, name: 'Manish Pandey', vehicle: 'Motorcycle Delivery', phone: '+91 85432 98764', rating: 4.5, ratePerKm: 8, latOffset: -0.002, lngOffset: -0.002 }
+];
+
+// Haversine formula to compute distance in km
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) {
+    return 0;
+  }
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return parseFloat((R * c).toFixed(2));
+}
+
 const Chat = ({ initialActiveChatId }) => {
-  const { user, token } = useContext(AuthContext);
+  const { user, simulatedLocation } = useContext(AuthContext);
+
+  const [hasSubmittedReview, setHasSubmittedReview] = useState(false);
 
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
@@ -39,7 +68,26 @@ const Chat = ({ initialActiveChatId }) => {
 
   const chatEndRef = useRef(null);
 
-  const loadTransaction = async () => {
+  const activeListingLat = activeChat?.listing_lat;
+  const activeListingLng = activeChat?.listing_lng;
+
+  const availableDrivers = activeListingLat && activeListingLng
+    ? MOCK_DRIVERS.map(d => {
+        const driverLat = activeListingLat + d.latOffset;
+        const driverLng = activeListingLng + d.lngOffset;
+        const dist = calculateDistance(activeListingLat, activeListingLng, driverLat, driverLng);
+        return {
+          ...d,
+          lat: driverLat,
+          lng: driverLng,
+          distance: dist
+        };
+      })
+      .filter(d => d.distance <= 5.0)
+      .sort((a, b) => a.distance - b.distance)
+    : [];
+
+  const loadTransaction = useCallback(async () => {
     if (!activeChat) return;
     try {
       const { data, error } = await supabase
@@ -53,7 +101,7 @@ const Chat = ({ initialActiveChatId }) => {
     } catch (err) {
       console.error('Error loading transaction details:', err);
     }
-  };
+  }, [activeChat]);
 
   const handleUpdateTransaction = async (txId, newStatus) => {
     try {
@@ -78,14 +126,14 @@ const Chat = ({ initialActiveChatId }) => {
   };
 
   // Load chat lists
-  const loadChats = async () => {
+  const loadChats = useCallback(async () => {
     if (!user) return;
     try {
       const { data, error } = await supabase
         .from('chats')
         .select(`
           *,
-          listings(title, price, image_urls, status),
+          listings(title, price, image_urls, status, lat, lng, address),
           buyer:users!chats_buyer_id_fkey(username, rating_avg),
           seller:users!chats_seller_id_fkey(username, rating_avg)
         `)
@@ -99,6 +147,9 @@ const Chat = ({ initialActiveChatId }) => {
         listing_price: chat.listings?.price || 0,
         listing_images: chat.listings?.image_urls || [],
         listing_status: chat.listings?.status || 'active',
+        listing_lat: chat.listings?.lat || null,
+        listing_lng: chat.listings?.lng || null,
+        listing_address: chat.listings?.address || '',
         buyer_name: chat.buyer?.username || 'Unknown Buyer',
         seller_name: chat.seller?.username || 'Unknown Seller',
         buyer_rating: chat.buyer?.rating_avg || 0.0,
@@ -117,11 +168,12 @@ const Chat = ({ initialActiveChatId }) => {
     } catch (err) {
       console.error('Error loading chats:', err);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, initialActiveChatId]);
 
   useEffect(() => {
     loadChats();
-  }, [initialActiveChatId, user]);
+  }, [loadChats]);
 
   // Load messages & meetups when active chat channel changes
   useEffect(() => {
@@ -153,16 +205,35 @@ const Chat = ({ initialActiveChatId }) => {
       }
     };
 
+    const checkReviewStatus = async () => {
+      if (!user || !activeChat) return;
+      try {
+        const { data: revData } = await supabase
+          .from('reviews')
+          .select('id')
+          .eq('listing_id', activeChat.listing_id)
+          .eq('reviewer_id', user.id)
+          .maybeSingle();
+        setHasSubmittedReview(!!revData);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
     loadMessagesAndMeetups();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTransaction();
+    checkReviewStatus();
     
-    // Default meetup coordinates to center on a default lat/lng
-    setMeetupCoords({ lat: 40.7128, lng: -74.0060 });
+    // Default meetup coordinates to center on listing or user
+    const baseLat = activeChat.listing_lat || simulatedLocation.lat || 40.7128;
+    const baseLng = activeChat.listing_lng || simulatedLocation.lng || -74.0060;
+    setMeetupCoords({ lat: baseLat, lng: baseLng });
     setMeetupLocation('');
     setMeetupTime('');
     setShowMeetupPlanner(false);
 
-  }, [activeChat]);
+  }, [activeChat, loadTransaction, user, simulatedLocation]);
 
   // Bind Supabase Realtime Listeners
   useEffect(() => {
@@ -205,7 +276,7 @@ const Chat = ({ initialActiveChatId }) => {
     return () => {
       supabase.removeChannel(sub);
     };
-  }, [activeChat]);
+  }, [activeChat, loadChats]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -359,6 +430,7 @@ const Chat = ({ initialActiveChatId }) => {
       alert('Review submitted successfully! Thank you for supporting the community trust system.');
       setShowReviewModal(false);
       setReviewComment('');
+      setHasSubmittedReview(true);
     } catch (err) {
       console.error(err);
       alert(err.message || 'Failed to submit review');
@@ -507,8 +579,7 @@ const Chat = ({ initialActiveChatId }) => {
                       style={{
                         alignSelf: isSystem ? 'center' : (isMine ? 'end' : 'start'),
                         backgroundColor: isSystem ? 'var(--warning-light)' : (isMine ? 'var(--primary)' : 'var(--bg-tertiary)'),
-                        color: isSystem ? 'var(--warning)' : (isMine ? '#white' : 'var(--text-primary)'),
-                        color: isMine && !isSystem ? 'white' : undefined,
+                        color: isSystem ? 'var(--warning)' : (isMine ? 'white' : 'var(--text-primary)'),
                         padding: '10px 16px',
                         borderRadius: 'var(--radius-sm)',
                         maxWidth: '70%',
@@ -649,8 +720,19 @@ const Chat = ({ initialActiveChatId }) => {
                 )}
 
                 {activeTransaction.status === 'completed' && (
-                  <div style={{ fontSize: '12px', color: 'var(--success)', fontWeight: '600', textAlign: 'center', backgroundColor: 'var(--success-light)', padding: '6px', borderRadius: '4px' }}>
-                    🎉 Completed & Sold!
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--success)', fontWeight: '600', textAlign: 'center', backgroundColor: 'var(--success-light)', padding: '6px', borderRadius: '4px' }}>
+                      🎉 Completed & Sold!
+                    </div>
+                    {!hasSubmittedReview && (
+                      <button
+                        onClick={() => setShowReviewModal(true)}
+                        className="btn btn-primary btn-sm"
+                        style={{ width: '100%', fontWeight: '700' }}
+                      >
+                        ⭐ Review Seller
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -659,6 +741,95 @@ const Chat = ({ initialActiveChatId }) => {
                     ❌ Order Cancelled
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Route navigation map */}
+            {activeTransaction && (activeTransaction.status === 'pending' || activeTransaction.status === 'accepted' || activeTransaction.status === 'completed') && activeChat && activeChat.listing_lat && activeChat.listing_lng && (
+              <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <h4 style={{ margin: 0, fontWeight: '700', fontSize: '14px' }}>📍 Navigation Route</h4>
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  {(() => {
+                    const acceptedMeetup = meetupsList.find(m => m.status === 'accepted');
+                    if (acceptedMeetup) {
+                      return `Route to meetup spot: ${acceptedMeetup.location_name}`;
+                    }
+                    return `Route to listing location: ${activeChat.listing_address || 'Seller base'}`;
+                  })()}
+                </p>
+                <div style={{ height: '200px', borderRadius: '8px', overflow: 'hidden' }}>
+                  <MapView
+                    center={[
+                      activeChat.listing_lat,
+                      activeChat.listing_lng
+                    ]}
+                    zoom={12}
+                    userLocation={simulatedLocation}
+                    route={{
+                      start: { lat: simulatedLocation.lat, lng: simulatedLocation.lng },
+                      end: (() => {
+                        const acceptedMeetup = meetupsList.find(m => m.status === 'accepted');
+                        if (acceptedMeetup) {
+                          return { lat: acceptedMeetup.lat, lng: acceptedMeetup.lng };
+                        }
+                        return { lat: activeChat.listing_lat, lng: activeChat.listing_lng };
+                      })()
+                    }}
+                    drivers={availableDrivers}
+                    height="100%"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Local drivers list */}
+            {activeTransaction && (activeTransaction.status === 'pending' || activeTransaction.status === 'accepted' || activeTransaction.status === 'completed') && availableDrivers.length > 0 && (
+              <div className="glass-panel" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <h4 style={{ margin: 0, fontWeight: '700', fontSize: '14px' }}>🚚 Local Transportation Drivers</h4>
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  Hyperlocal delivery options within 5 km of the item's listed area.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {availableDrivers.map(driver => (
+                    <div
+                      key={driver.id}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '12px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>
+                          {driver.name} <span style={{ color: 'var(--warning)', fontWeight: 'normal' }}>★ {driver.rating}</span>
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                          {driver.vehicle}
+                        </div>
+                        <div style={{ color: 'var(--primary)', fontSize: '11px', fontWeight: '600' }}>
+                          📍 {driver.distance.toFixed(1)} km away
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ fontWeight: '700', color: 'var(--success)' }}>
+                          ₹{driver.ratePerKm}/km
+                        </div>
+                        <button
+                          onClick={() => alert(`📞 Call ${driver.name} (${driver.vehicle}) at ${driver.phone} to coordinate pickup/delivery.`)}
+                          className="btn btn-primary btn-sm"
+                          style={{ padding: '4px 8px', fontSize: '10px' }}
+                        >
+                          Contact
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -686,8 +857,9 @@ const Chat = ({ initialActiveChatId }) => {
                           type="button"
                           onClick={() => {
                             setMeetupLocation(spot.name);
-                            // Set coordinates slightly offset from listings to simulate close proximity
-                            setMeetupCoords({ lat: 40.7128 + spot.latOffset, lng: -74.0060 + spot.lngOffset });
+                            const baseLat = activeChat.listing_lat || simulatedLocation.lat || 40.7128;
+                            const baseLng = activeChat.listing_lng || simulatedLocation.lng || -74.0060;
+                            setMeetupCoords({ lat: baseLat + spot.latOffset, lng: baseLng + spot.lngOffset });
                           }}
                           className="btn btn-secondary btn-sm"
                           style={{
