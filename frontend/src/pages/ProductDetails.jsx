@@ -14,9 +14,9 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * (Math.PI / 180)) *
-      Math.cos(lat2 * (Math.PI / 180)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
   return parseFloat(distance.toFixed(2)); // round to 2 decimal places
@@ -156,7 +156,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
       setCurrentPage('auth');
       return;
     }
-    
+
     try {
       // 1. Check if chat already exists
       let { data: existingChat, error: chatFindError } = await supabase
@@ -221,7 +221,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'fadeIn 0.3s ease-out' }}>
-      
+
       {/* Back navigation */}
       <div>
         <button className="btn btn-secondary btn-sm" onClick={onBack}>
@@ -234,7 +234,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
         gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
         gap: '32px'
       }}>
-        
+
         {/* Left Column: Image Gallery */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="glass-panel" style={{
@@ -266,7 +266,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
                 SOLD OUT
               </div>
             )}
-            
+
             <span className="badge badge-distance" style={{ position: 'absolute', bottom: '16px', left: '16px', zIndex: 2 }}>
               📍 {listing.distance !== null ? `${listing.distance} km away` : 'Calculating...'}
             </span>
@@ -298,7 +298,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
 
         {/* Right Column: Listing Details & Actions */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
+
           <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'start', flexWrap: 'wrap', gap: '12px' }}>
               <div>
@@ -361,7 +361,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
                   📍 {listing.seller_address}
                 </p>
               </div>
-              
+
               <div style={{ textAlign: 'right' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'end' }}>
                   <span style={{ color: 'var(--warning)', fontSize: '18px' }}>★</span>
@@ -414,7 +414,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
             gap: '16px'
           }}>
             <h3 style={{ margin: 0, fontWeight: '800' }}>⚡ Secure Checkout</h3>
-            
+
             {buyError && (
               <div className="badge badge-danger" style={{ padding: '8px', textTransform: 'none', borderRadius: '4px', width: '100%' }}>
                 ⚠️ {buyError}
@@ -436,7 +436,7 @@ const ProductDetails = ({ listingId, onBack, onStartChat, setCurrentPage }) => {
 
             <div>
               <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px' }}>Choose Secure Transaction Method</label>
-              
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{
                   display: 'flex',

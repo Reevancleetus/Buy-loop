@@ -110,10 +110,10 @@ const Profile = ({ setCurrentPage }) => {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px', animation: 'fadeIn 0.3s ease-out' }}>
-      
+
       {/* Left Column: User details, rating & mock location */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        
+
         {/* User Card */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -197,7 +197,7 @@ const Profile = ({ setCurrentPage }) => {
         {/* Reviews Card */}
         <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>Community Reviews</h3>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {reviews.length === 0 ? (
               <p style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', padding: '12px 0' }}>
